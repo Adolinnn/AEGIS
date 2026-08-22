@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { usePage, router, useForm } from '@inertiajs/react';
+import { usePage, router, useForm, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import PrimaryButton from '@/Components/PrimaryButton';
 import DangerButton from '@/Components/DangerButton';
@@ -23,6 +23,7 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
         display_name: '',
         uptime_check_interval_minutes: 15,
         scan_types: ['xss', 'sqli', 'ssrf', 'misconfiguration'],
+        is_authorized: false,
     });
 
     const submitCreateTarget = (e) => {
@@ -85,10 +86,17 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                         <h2 className="text-xl font-semibold text-gray-100">Targets</h2>
                         <p className="text-sm text-gray-500">Monitor and scan your web assets</p>
                     </div>
-                    <PrimaryButton onClick={() => setShowCreateModal(true)}>
-                        <PlusIcon className="h-5 w-5 mr-2" />
-                        Add Target
-                    </PrimaryButton>
+                    <div className="text-right">
+                        <PrimaryButton onClick={() => setShowCreateModal(true)} disabled={!canAddTarget}>
+                            <PlusIcon className="h-5 w-5 mr-2" />
+                            Add Target
+                        </PrimaryButton>
+                        {!canAddTarget && (
+                            <p className="mt-1 text-xs text-yellow-400">
+                                Target limit reached ({maxTargets}) for your {subscriptionTier?.label ?? subscriptionTier} plan.
+                            </p>
+                        )}
+                    </div>
                 </div>
             }
         >
@@ -123,7 +131,7 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                 <div>
                                     <p className="text-gray-400 text-sm font-mono">VULNERABLE</p>
                                     <p className="text-2xl font-bold text-red-400 font-mono">
-                                        {targets.data.filter(t => t.unresolved_vulnerabilities?.length > 0).length}
+                                        {targets.data.filter(t => t.unresolved_findings?.length > 0).length}
                                     </p>
                                 </div>
                                 <ExclamationTriangleIcon className="h-8 w-8 text-gray-600" />
@@ -134,7 +142,7 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                 <div>
                                     <p className="text-gray-400 text-sm font-mono">TIER LIMIT</p>
                                     <p className="text-2xl font-bold text-blue-400 font-mono">
-                                        {targets.total} / {maxTargets}
+                                        {targets.total} / {maxTargets > 999999 ? '∞' : maxTargets}
                                     </p>
                                 </div>
                                 <div className="h-8 w-8 bg-blue-900/30 rounded-lg flex items-center justify-center">
@@ -183,16 +191,20 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                     </tr>
                                 ) : (
                                     filteredTargets.map((target) => (
-                                        <tr key={target.id} className="hover:bg-gray-700/50 transition-colors">
-                                            <td className="px-4 py-4">
-                                                <div>
-                                                    <p className="font-mono text-sm text-gray-100 truncate max-w-xs">
+                                        <tr
+                                            key={target.id}
+                                            className="hover:bg-gray-700/50 transition-colors cursor-pointer"
+                                            onClick={() => router.visit(route('targets.show', target.id))}
+                                        >
+                                            <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                                                <Link href={route('targets.show', target.id)} className="block">
+                                                    <p className="font-mono text-sm text-gray-100 truncate max-w-xs hover:text-red-400 hover:underline">
                                                         {target.domain_url}
                                                     </p>
                                                     {target.display_name && (
                                                         <p className="text-xs text-gray-500 truncate max-w-xs">{target.display_name}</p>
                                                     )}
-                                                </div>
+                                                </Link>
                                             </td>
                                             <td className="px-4 py-4">
                                                 {getStatusBadge(target)}
@@ -212,7 +224,7 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4">
-                                                {getVulnBadges(target.unresolved_vulnerabilities)}
+                                                {getVulnBadges(target.unresolved_findings)}
                                             </td>
                                             <td className="px-4 py-4">
                                                 <span className="font-mono text-xs text-gray-500">
@@ -221,7 +233,7 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                                         : 'Never'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-4 text-right">
+                                            <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <Dropdown>
                                                     <Dropdown.Trigger as={SecondaryButton} className="w-full sm:w-auto">
                                                         <ChevronDownIcon className="h-4 w-4 mr-1" />
@@ -254,7 +266,7 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                                             Check Uptime
                                                         </Dropdown.Link>
                                                         <Dropdown.Link
-                                                            onClick={() => router.post(route('targets.scan', target.id))}
+                                                            href={route('targets.show', target.id)}
                                                             className="block w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900/20"
                                                         >
                                                             Run Security Scan
@@ -385,6 +397,20 @@ export default function TargetsIndex({ targets, subscriptionTier, maxTargets, ca
                                             </div>
                                         </div>
                                     </div>
+                                        <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-3">
+                                            <label className="flex items-start gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={data.is_authorized}
+                                                    onChange={(e) => setData('is_authorized', e.target.checked)}
+                                                    className="mt-0.5 h-4 w-4 rounded border-gray-700 bg-gray-900 text-red-500 focus:ring-red-500"
+                                                />
+                                                <span className="text-xs text-gray-400">
+                                                    I own or am explicitly authorized to run active security scans against this target. Scans cannot be started until this is confirmed.
+                                                </span>
+                                            </label>
+                                            <InputError message={errors.is_authorized} className="mt-1" />
+                                        </div>
                                     <div className="mt-6 flex justify-end gap-3">
                                         <SecondaryButton
                                             type="button"
