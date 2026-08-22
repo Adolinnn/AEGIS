@@ -9,13 +9,11 @@ use App\Enums\SubscriptionTier;
 use App\Enums\TargetStatus;
 use App\Http\Requests\StoreTargetRequest;
 use App\Http\Requests\UpdateTargetRequest;
+use App\Enums\ToolName;
 use App\Jobs\CheckUptimeJob;
-use App\Jobs\ScanTargetJob;
 use App\Scanning\ToolRegistry;
 use App\Models\Target;
 use App\Models\UptimeLog;
-use App\Models\VulnerabilityLog;
-use App\Services\ScannerService;
 use App\Services\UptimeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +27,7 @@ class TargetController extends Controller
         $user = $request->user();
 
         $targets = Target::where('user_id', $user->id)
-            ->with(['latestUptimeLog', 'unresolvedVulnerabilities'])
+            ->with(['latestUptimeLog', 'unresolvedFindings'])
             ->latest()
             ->paginate(15)
             ->withQueryString();
@@ -87,9 +85,9 @@ class TargetController extends Controller
 
         $target->load([
             'latestUptimeLog',
-            'unresolvedVulnerabilities',
             'uptimeLogs' => fn ($q) => $q->latest()->limit(50),
-            'vulnerabilityLogs' => fn ($q) => $q->latest()->limit(50),
+            'findings' => fn ($q) => $q->latest('detected_at')->limit(50),
+            'scanRuns' => fn ($q) => $q->latest()->limit(10),
         ]);
 
         $uptimeStats = app(UptimeService::class)->getUptimeStats($target, 30);
@@ -98,20 +96,54 @@ class TargetController extends Controller
             'target' => $target,
             'uptimeStats' => $uptimeStats,
             'recentUptimeLogs' => $target->uptimeLogs,
-            'recentVulnerabilities' => $target->vulnerabilityLogs,
-            'scanTypes' => ScanType::cases(),
+            'recentFindings' => $target->findings->map(fn ($f) => [
+                'id' => $f->id,
+                'tool' => $f->tool->value,
+                'title' => $f->title,
+                'category' => $f->category,
+                'severity' => $f->severity->value,
+                'is_resolved' => $f->is_resolved,
+                'detected_at' => $f->detected_at,
+            ]),
+            'recentRuns' => $target->scanRuns->map(fn ($r) => [
+                'id' => $r->id,
+                'status' => $r->status->value,
+                'status_label' => $r->status->label(),
+                'selected_tools' => $r->selected_tools,
+                'created_at' => $r->created_at,
+                'finished_at' => $r->finished_at,
+            ]),
             'consentText' => config('scanning.consent_text'),
-            'availableTools' => app(ToolRegistry::class)
-                ->all()
-                ->map(fn ($tool) => [
-                    'name' => $tool->name()->value,
-                    'label' => $tool->name()->label(),
-                    'description' => $tool->name()->description(),
-                    'installed' => $tool->name()->isInstalled(),
-                ])
-                ->values()
-                ->all(),
+            'availableTools' => $this->availableTools(),
         ]);
+    }
+
+    /**
+     * Scanners offered in the launch UI: the always-available built-in checks
+     * plus every registered external tool, flagged by install status.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function availableTools(): array
+    {
+        $builtin = [[
+            'name' => ToolName::Builtin->value,
+            'label' => ToolName::Builtin->label(),
+            'description' => ToolName::Builtin->description(),
+            'installed' => true,
+        ]];
+
+        $external = app(ToolRegistry::class)->all()
+            ->map(fn ($tool) => [
+                'name' => $tool->name()->value,
+                'label' => $tool->name()->label(),
+                'description' => $tool->name()->description(),
+                'installed' => $tool->name()->isInstalled(),
+            ])
+            ->values()
+            ->all();
+
+        return array_merge($builtin, $external);
     }
 
     public function edit(Target $target): Response
@@ -156,41 +188,6 @@ class TargetController extends Controller
             ->with('success', 'Target deleted successfully.');
     }
 
-    public function scan(Request $request, Target $target): RedirectResponse
-    {
-        $this->authorizeTarget($target);
-
-        $user = $request->user();
-
-        // Check daily scan limit
-        $todayScans = $target->vulnerabilityLogs()
-            ->whereDate('detected_at', today())
-            ->count();
-
-        if ($todayScans >= $user->maxScansPerDay()) {
-            return back()->withErrors([
-                'scan' => "Daily scan limit reached ({$user->maxScansPerDay()}). Upgrade your plan for more scans.",
-            ]);
-        }
-
-        $scanTypes = $request->array('scan_types', []);
-        if (empty($scanTypes)) {
-            $scanTypes = ['xss', 'sqli', 'ssrf', 'misconfiguration'];
-        }
-
-        // Validate scan types
-        $validTypes = array_column(ScanType::cases(), 'value');
-        $scanTypes = array_intersect($scanTypes, $validTypes);
-
-        if (empty($scanTypes)) {
-            return back()->withErrors(['scan' => 'No valid scan types selected.']);
-        }
-
-        ScanTargetJob::dispatch($target->id, $scanTypes);
-
-        return back()->with('success', 'Security scan queued. Results will appear shortly.');
-    }
-
     public function checkUptime(Request $request, Target $target): RedirectResponse
     {
         $this->authorizeTarget($target);
@@ -204,22 +201,37 @@ class TargetController extends Controller
     {
         $this->authorizeTarget($target);
 
-        $vulnerabilities = $target->vulnerabilityLogs()
+        $findings = $target->findings()
+            ->with('scanRun:id,status')
             ->when($request->filled('severity'), fn ($q) => $q->where('severity', $request->string('severity')))
-            ->when($request->filled('type'), fn ($q) => $q->where('vulnerability_type', $request->string('type')))
-            ->when($request->filled('resolved'), fn ($q) => $request->boolean('resolved')
-                ? $q->where('is_resolved', true)
-                : $q->where('is_resolved', false))
-            ->latest()
+            ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')))
+            ->when($request->filled('resolved'), fn ($q) => $q->where('is_resolved', $request->boolean('resolved')))
+            ->latest('detected_at')
             ->paginate(20)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn ($f) => [
+                'id' => $f->id,
+                'scan_run_id' => $f->scan_run_id,
+                'tool' => $f->tool->value,
+                'tool_label' => $f->tool->label(),
+                'title' => $f->title,
+                'category' => $f->category,
+                'severity' => $f->severity->value,
+                'description' => $f->description,
+                'evidence' => $f->evidence,
+                'recommendation' => $f->recommendation,
+                'is_resolved' => $f->is_resolved,
+                'has_ai_patch' => filled($f->ai_patch_snippet),
+                'ai_patch_snippet' => $f->ai_patch_snippet,
+                'detected_at' => $f->detected_at,
+            ]);
 
         return Inertia::render('Targets/Vulnerabilities', [
-            'target' => $target,
-            'vulnerabilities' => $vulnerabilities,
-            'filters' => $request->only(['severity', 'type', 'resolved']),
-            'severities' => \App\Enums\VulnerabilitySeverity::cases(),
-            'scanTypes' => ScanType::cases(),
+            'target' => $target->only(['id', 'domain_url', 'display_name', 'is_authorized']),
+            'findings' => $findings,
+            'filters' => $request->only(['severity', 'category', 'resolved']),
+            'severities' => array_map(fn ($s) => $s->value, \App\Enums\VulnerabilitySeverity::cases()),
+            'categories' => $target->findings()->distinct()->pluck('category')->filter()->values(),
         ]);
     }
 
