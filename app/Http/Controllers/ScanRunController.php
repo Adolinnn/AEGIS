@@ -9,6 +9,7 @@ use App\Jobs\RunScanJob;
 use App\Models\ScanRun;
 use App\Models\Target;
 use App\Scanning\ToolRegistry;
+use App\Services\ReportAgentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,6 +29,9 @@ class ScanRunController extends Controller
 
         return Inertia::render('ScanRuns/Index', [
             'runs' => $runs,
+            'targets' => $user->targets()->get(['id', 'domain_url', 'display_name', 'is_authorized']),
+            'availableTools' => $this->availableTools(),
+            'consentText' => config('scanning.consent_text'),
         ]);
     }
 
@@ -37,7 +41,12 @@ class ScanRunController extends Controller
             abort(403);
         }
 
-        $scanRun->load(['target', 'findings' => fn ($q) => $q->orderByDesc('severity'), 'report']);
+        $scanRun->load([
+            'target',
+            'findings' => fn ($q) => $q->orderByDesc('severity'),
+            'report',
+            'toolOutputs' => fn ($q) => $q->orderBy('id'),
+        ]);
 
         $findings = $scanRun->findings->map(fn ($f) => [
             'id' => $f->id,
@@ -48,6 +57,17 @@ class ScanRunController extends Controller
             'description' => $f->description,
             'evidence' => $f->evidence,
             'recommendation' => $f->recommendation,
+        ]);
+
+        $toolOutputs = $scanRun->toolOutputs->map(fn ($o) => [
+            'tool' => $o->tool,
+            'tool_label' => \App\Enums\ToolName::tryFrom($o->tool)?->label() ?? $o->tool,
+            'status' => $o->status,
+            'command' => $o->command,
+            'exit_code' => $o->exit_code,
+            'timed_out' => $o->timed_out,
+            'output' => $o->output,
+            'findings_count' => $o->findings_count,
         ]);
 
         return Inertia::render('ScanRuns/Show', [
@@ -68,6 +88,7 @@ class ScanRunController extends Controller
                 'display_name' => $scanRun->target->display_name,
             ],
             'findings' => $findings,
+            'toolOutputs' => $toolOutputs,
             'report' => $scanRun->report ? [
                 'provider' => $scanRun->report->provider,
                 'risk_score' => $scanRun->report->risk_score,
@@ -96,6 +117,7 @@ class ScanRunController extends Controller
 
         $request->validate([
             'consent' => ['required', 'accepted'],
+            'generate_report' => ['sometimes', 'boolean'],
             'tools' => ['sometimes', 'array'],
             'tools.*' => ['string', 'in:' . implode(',', array_column(ToolName::cases(), 'value'))],
         ]);
@@ -124,6 +146,7 @@ class ScanRunController extends Controller
             'selected_tools' => array_map(fn (ToolName $t) => $t->value, $selected),
             'consent_attested' => true,
             'consent_text' => config('scanning.consent_text'),
+            'generate_report' => (bool) $request->boolean('generate_report'),
         ]);
 
         RunScanJob::dispatch($run->id);
@@ -134,9 +157,50 @@ class ScanRunController extends Controller
     /**
      * Tool availability for the UI authorization form.
      */
+    /**
+     * Queue on-demand AI report generation for a finished scan run.
+     */
+    public function generateReport(Request $request, ScanRun $scanRun, ReportAgentService $agent): RedirectResponse
+    {
+        if ($scanRun->user_id !== $request->user()->id && ! $request->user()->isAdmin()) {
+            abort(403);
+        }
+
+        if (! $scanRun->status->isTerminal()) {
+            return back()->withErrors(['report' => 'Wait for the scan to finish before generating a report.']);
+        }
+
+        if ($scanRun->findings()->count() === 0) {
+            return back()->withErrors(['report' => 'There are no findings to write a report from.']);
+        }
+
+        // Run synchronously rather than queueing: report generation is one
+        // HTTP call to the LLM (seconds), and relying on a background queue
+        // worker being alive silently drops the request with no feedback if
+        // one isn't running. This also lets us surface a real error to the
+        // "Generate report" button instead of a permanent no-op.
+        $scanRun->loadMissing('target');
+        $report = $agent->generateForRun($scanRun);
+
+        if (! $report) {
+            return back()->withErrors([
+                'report' => 'Report generation failed. Check that an AI provider and API key are configured (Profile > AI settings, or server .env), and check storage/logs/laravel.log for the underlying error.',
+            ]);
+        }
+
+        return back()->with('success', 'AI report generated.');
+    }
+
     public function availableTools(): array
     {
-        return app(ToolRegistry::class)
+        $builtin = [[
+            'name' => \App\Enums\ToolName::Builtin->value,
+            'label' => \App\Enums\ToolName::Builtin->label(),
+            'description' => \App\Enums\ToolName::Builtin->description(),
+            'installed' => true,
+        ]];
+
+        $external = app(ToolRegistry::class)
             ->all()
             ->map(fn ($tool) => [
                 'name' => $tool->name()->value,
@@ -144,6 +208,9 @@ class ScanRunController extends Controller
                 'description' => $tool->name()->description(),
                 'installed' => $tool->name()->isInstalled(),
             ])
+            ->values()   // re-index so this serializes as a JSON array, not an object
             ->all();
+
+        return array_merge($builtin, $external);
     }
 }
