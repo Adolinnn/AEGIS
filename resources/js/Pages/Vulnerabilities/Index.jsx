@@ -1,7 +1,7 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SecondaryButton from '@/Components/SecondaryButton';
-import { ArrowLeftIcon, CheckCircleIcon, ArrowUturnLeftIcon, SparklesIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ArrowUturnLeftIcon, SparklesIcon, ChevronDownIcon, BugAntIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 
 const SEV = {
@@ -23,7 +23,14 @@ function FindingRow({ finding, onResolve, onUnresolve, onPatch }) {
                 <span className={`mt-0.5 rounded border px-2 py-0.5 font-mono text-[10px] uppercase ${SEV[finding.severity] ?? SEV.info}`}>{finding.severity}</span>
                 <div className="min-w-0 flex-1">
                     <p className={`truncate text-sm ${finding.is_resolved ? 'text-gray-500 line-through' : 'text-gray-100'}`}>{finding.title}</p>
-                    <p className="text-xs text-gray-500">{finding.tool_label} · {finding.category} · {finding.detected_at ? new Date(finding.detected_at).toLocaleDateString() : ''}</p>
+                    <p className="text-xs text-gray-500">
+                        {finding.target && (
+                            <Link href={route('targets.vulnerabilities', finding.target.id)} className="text-gray-400 hover:text-red-400">
+                                {finding.target.domain_url}
+                            </Link>
+                        )}
+                        {' · '}{finding.tool_label} · {finding.category}
+                    </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     {finding.is_resolved ? (
@@ -53,20 +60,18 @@ function FindingRow({ finding, onResolve, onUnresolve, onPatch }) {
                             <p className="text-gray-300">{finding.recommendation}</p>
                         </div>
                     )}
-                    <div>
-                        {finding.has_ai_patch ? (
-                            <div>
-                                <p className="mb-1 font-mono text-xs uppercase text-gray-500">AI Patch</p>
-                                <pre className="overflow-auto rounded bg-black p-3 font-mono text-xs text-gray-200">{finding.ai_patch_snippet}</pre>
-                            </div>
-                        ) : (
-                            <button onClick={() => onPatch(finding)} className="inline-flex items-center gap-1 rounded border border-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-800">
-                                <SparklesIcon className="h-3.5 w-3.5" /> Generate AI patch
-                            </button>
-                        )}
-                    </div>
+                    {finding.has_ai_patch ? (
+                        <div>
+                            <p className="mb-1 font-mono text-xs uppercase text-gray-500">AI Patch</p>
+                            <pre className="overflow-auto rounded bg-black p-3 font-mono text-xs text-gray-200">{finding.ai_patch_snippet}</pre>
+                        </div>
+                    ) : (
+                        <button onClick={() => onPatch(finding)} className="inline-flex items-center gap-1 rounded border border-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-800">
+                            <SparklesIcon className="h-3.5 w-3.5" /> Generate AI patch
+                        </button>
+                    )}
                     {finding.scan_run_id && (
-                        <Link href={route('scan-runs.show', finding.scan_run_id)} className="inline-block text-xs text-red-400 hover:text-red-300">
+                        <Link href={route('scan-runs.show', finding.scan_run_id)} className="block text-xs text-red-400 hover:text-red-300">
                             View originating scan run →
                         </Link>
                     )}
@@ -76,10 +81,19 @@ function FindingRow({ finding, onResolve, onUnresolve, onPatch }) {
     );
 }
 
-export default function TargetVulnerabilities({ target, findings, filters = {}, severities = [], categories = [] }) {
+function Stat({ label, value, accent }) {
+    return (
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-center">
+            <p className={`font-mono text-2xl font-bold ${accent}`}>{value}</p>
+            <p className="font-mono text-xs uppercase text-gray-500">{label}</p>
+        </div>
+    );
+}
+
+export default function VulnerabilitiesIndex({ findings, targets = [], filters = {}, severities = [], categories = [], stats }) {
     const setFilter = (key, value) => {
         const next = { ...filters, [key]: value === '' ? undefined : value };
-        router.get(route('targets.vulnerabilities', target.id), next, { preserveScroll: true, preserveState: true });
+        router.get(route('vulnerabilities.index'), next, { preserveScroll: true, preserveState: true });
     };
 
     const onResolve = (f) => router.post(route('vulnerabilities.resolve', f.id), {}, { preserveScroll: true });
@@ -88,24 +102,25 @@ export default function TargetVulnerabilities({ target, findings, filters = {}, 
 
     return (
         <AuthenticatedLayout
-            header={
-                <div className="flex items-center gap-4">
-                    <SecondaryButton onClick={() => router.visit(route('targets.show', target.id))}>
-                        <ArrowLeftIcon className="mr-2 h-5 w-5" /> Back
-                    </SecondaryButton>
-                    <div className="min-w-0">
-                        <h2 className="truncate font-mono text-xl font-semibold text-gray-100">Vulnerabilities</h2>
-                        <p className="truncate text-sm text-gray-500">{target.domain_url}</p>
-                    </div>
-                </div>
-            }
+            header={<h2 className="flex items-center gap-2 text-xl font-semibold text-gray-100"><BugAntIcon className="h-6 w-6 text-red-500" /> Vulnerabilities</h2>}
         >
-            <Head title={`Vulnerabilities · ${target.domain_url}`} />
+            <Head title="Vulnerabilities" />
 
             <div className="py-6">
                 <div className="mx-auto max-w-5xl space-y-4 px-4 sm:px-6 lg:px-8">
-                    {/* Filters */}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <Stat label="Total" value={stats.total} accent="text-gray-100" />
+                        <Stat label="Open" value={stats.unresolved} accent="text-yellow-400" />
+                        <Stat label="Critical" value={stats.critical} accent="text-red-400" />
+                        <Stat label="High" value={stats.high} accent="text-orange-400" />
+                    </div>
+
                     <div className="flex flex-wrap gap-3 rounded-lg border border-gray-800 bg-gray-900 p-3">
+                        <select value={filters.target_id ?? ''} onChange={(e) => setFilter('target_id', e.target.value)}
+                            className="rounded-md border-gray-700 bg-gray-900 text-sm text-gray-200 focus:border-red-500 focus:ring-red-500">
+                            <option value="">All targets</option>
+                            {targets.map((t) => <option key={t.id} value={t.id}>{t.domain_url}</option>)}
+                        </select>
                         <select value={filters.severity ?? ''} onChange={(e) => setFilter('severity', e.target.value)}
                             className="rounded-md border-gray-700 bg-gray-900 text-sm text-gray-200 focus:border-red-500 focus:ring-red-500">
                             <option value="">All severities</option>
@@ -122,18 +137,15 @@ export default function TargetVulnerabilities({ target, findings, filters = {}, 
                             <option value="false">Unresolved</option>
                             <option value="true">Resolved</option>
                         </select>
-                        {(filters.severity || filters.category || filters.resolved !== undefined) && (
-                            <SecondaryButton onClick={() => router.get(route('targets.vulnerabilities', target.id), {}, { preserveScroll: true })}>
-                                Clear
-                            </SecondaryButton>
+                        {(filters.severity || filters.category || filters.target_id || filters.resolved !== undefined) && (
+                            <SecondaryButton onClick={() => router.get(route('vulnerabilities.index'), {}, { preserveScroll: true })}>Clear</SecondaryButton>
                         )}
                     </div>
 
-                    {/* Findings list */}
                     <div className="rounded-lg border border-gray-800 bg-gray-900">
                         {findings.data.length === 0 ? (
                             <div className="px-5 py-12 text-center text-sm text-gray-500">
-                                No findings match these filters. Run a scan from the target page to generate findings.
+                                No findings yet. Add a target and start a scan run to populate this list.
                             </div>
                         ) : (
                             <ul className="divide-y divide-gray-800">
@@ -144,7 +156,6 @@ export default function TargetVulnerabilities({ target, findings, filters = {}, 
                         )}
                     </div>
 
-                    {/* Pagination */}
                     {findings.links && findings.links.length > 3 && (
                         <div className="flex flex-wrap justify-center gap-1">
                             {findings.links.map((link, i) => (
