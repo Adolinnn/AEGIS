@@ -22,6 +22,7 @@ return new class extends Migration
             $table->text('error_message')->nullable();
             $table->json('response_headers')->nullable();
             $table->timestamp('checked_at')->useCurrent();
+            $table->timestamps();
 
             $table->index(['target_id', 'checked_at']);
             $table->index('status');
