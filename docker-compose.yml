@@ -1,0 +1,31 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aegis:local
+    ports:
+      - "8000:8000"   # web app (Laravel + Inertia, single origin)
+      - "8080:8080"   # Reverb websockets
+    env_file:
+      - ./backend/.env   # your real Aiven creds, admin login, Reverb keys — used as-is
+    environment:
+      # Overrides so the app matches the container context instead of
+      # whatever host/path your local backend/.env was written for.
+      APP_URL: "http://localhost:8000"
+      SESSION_DOMAIN: "null"
+      SANCTUM_STATEFUL_DOMAINS: "localhost:8000,127.0.0.1:8000"
+      # backend/.env points this at an absolute path from your machine;
+      # inside the image the cert lives here instead (it's baked into the
+      # image from backend/storage/certs/aiven-ca.pem).
+      MYSQL_ATTR_SSL_CA: "/var/www/html/storage/certs/aiven-ca.pem"
+      PHP_CLI_SERVER_WORKERS: "4"
+    volumes:
+      - aegis_storage:/var/www/html/storage/app
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    restart: unless-stopped
+
+volumes:
+  aegis_storage:
