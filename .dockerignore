@@ -1,0 +1,9 @@
+backend/node_modules
+backend/vendor
+frontend/node_modules
+backend/public/build
+backend/storage/logs
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+.git
