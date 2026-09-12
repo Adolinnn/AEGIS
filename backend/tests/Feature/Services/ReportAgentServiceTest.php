@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Services;
+namespace Tests\Feature\Services;
 
 use App\Models\Report;
 use App\Models\ScanRun;
@@ -63,7 +63,7 @@ class ReportAgentServiceTest extends TestCase
         ]);
 
         $run = $this->makeRunWithFindings();
-        $report = (new ReportAgentService())->generateForRun($run);
+        $report = app(ReportAgentService::class)->generateForRun($run);
 
         $this->assertNotNull($report);
         $this->assertSame('openai', $report->provider);
@@ -79,7 +79,7 @@ class ReportAgentServiceTest extends TestCase
         config(['services.llm.anthropic.key' => null]);
 
         $run = $this->makeRunWithFindings();
-        $report = (new ReportAgentService())->generateForRun($run);
+        $report = app(ReportAgentService::class)->generateForRun($run);
 
         $this->assertNull($report);
         $this->assertSame(0, Report::count());
@@ -93,6 +93,6 @@ class ReportAgentServiceTest extends TestCase
         $target = Target::factory()->create(['user_id' => $user->id]);
         $run = ScanRun::factory()->create(['user_id' => $user->id, 'target_id' => $target->id]);
 
-        $this->assertNull((new ReportAgentService())->generateForRun($run));
+        $this->assertNull(app(ReportAgentService::class)->generateForRun($run));
     }
 }
