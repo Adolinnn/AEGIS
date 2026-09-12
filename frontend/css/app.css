@@ -1,0 +1,347 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Sleek dark scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #020408;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #151d2f;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #f43f5e;
+  }
+
+  body {
+    background-color: #020408;
+    color: #e2e8f0;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-x: hidden;
+  }
+}
+
+@keyframes laser-sweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(200%); opacity: 0; }
+}
+
+@keyframes radar-scan {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes cyber-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@layer utilities {
+  /* Persistent Darker Cyber Thematic Background Canvas */
+  .cyber-bg-canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 15%, #050a16 0%, #020409 65%, #010205 100%);
+  }
+
+  /* Precision Dot Matrix & Wireframe Grid Overlay */
+  .cyber-bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image: 
+      radial-gradient(rgba(6, 182, 212, 0.11) 1px, transparent 1px),
+      linear-gradient(to right, rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+    background-size: 32px 32px, 32px 32px, 32px 32px;
+    mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.25) 80%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.25) 80%, transparent 100%);
+  }
+
+  /* Background Ambient Radar Sweep Effect */
+  .cyber-bg-radar {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: conic-gradient(
+      from 0deg at 50% 50%,
+      transparent 0deg,
+      rgba(6, 182, 212, 0.015) 60deg,
+      rgba(6, 182, 212, 0.045) 120deg,
+      transparent 121deg,
+      transparent 360deg
+    );
+    animation: radar-scan 24s linear infinite;
+    transform-origin: center center;
+  }
+
+  /* Laser Beam Sweep on Top of Panels */
+  .laser-beam-header {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .laser-beam-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #06b6d4, #f43f5e, transparent);
+    animation: laser-sweep 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  /* Prominent Interactive Cyber Cards */
+  .cyber-card-interactive {
+    position: relative;
+    background: linear-gradient(135deg, rgba(10, 16, 32, 0.9) 0%, rgba(5, 8, 16, 0.97) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .cyber-card-interactive:hover {
+    transform: translateY(-4px) scale(1.015);
+    border-color: rgba(6, 182, 212, 0.6);
+    box-shadow: 0 12px 35px -5px rgba(6, 182, 212, 0.22), 0 0 20px -2px rgba(6, 182, 212, 0.18);
+    background: linear-gradient(135deg, rgba(14, 22, 42, 0.95) 0%, rgba(8, 12, 24, 0.98) 100%);
+  }
+
+  /* Tactical Matte Cyber Button with Subtle Pulse */
+  .btn-cyber-tactical {
+    background: #e11d48;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-cyber-tactical:hover {
+    background: #f43f5e;
+    box-shadow: 0 0 16px rgba(244, 63, 94, 0.4);
+    transform: translateY(-1px);
+  }
+
+  /* High-Tech Cyber Laser Progress Bar for Page Navigation */
+  #nprogress .bar {
+    background: linear-gradient(90deg, #06b6d4, #f43f5e, #fb7185) !important;
+    height: 3px !important;
+    box-shadow: 0 0 16px #f43f5e, 0 0 8px #06b6d4 !important;
+    z-index: 99999 !important;
+  }
+
+  #nprogress .peg {
+    box-shadow: 0 0 18px #f43f5e, 0 0 10px #06b6d4 !important;
+  }
+
+  /* Navbar Bottom Telemetry Line */
+  .navbar-telemetry-line {
+    position: relative;
+  }
+  .navbar-telemetry-line::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(6, 182, 212, 0.3) 20%, rgba(244, 63, 94, 0.5) 50%, rgba(6, 182, 212, 0.3) 80%, transparent 100%);
+  }
+
+  /* HUD Entry Cascade */
+  .hud-fade-in {
+    animation: hud-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .hud-stagger-1 { animation-delay: 0.05s; }
+  .hud-stagger-2 { animation-delay: 0.12s; }
+  .hud-stagger-3 { animation-delay: 0.2s; }
+
+  /* Cyber Glow Badges */
+  .cyber-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border-radius: 0.375rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-width: 1px;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .cyber-badge:hover {
+    transform: scale(1.06);
+  }
+
+  /* AI Chat Markdown Typography & Cyber Styling */
+  .chat-markdown {
+    color: #cbd5e1;
+    font-size: 0.775rem;
+    line-height: 1.55;
+    word-break: break-word;
+    font-family: inherit;
+  }
+
+  .chat-markdown h1,
+  .chat-markdown h2,
+  .chat-markdown h3,
+  .chat-markdown h4 {
+    color: #f8fafc;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    margin-top: 0.75rem;
+    margin-bottom: 0.35rem;
+    line-height: 1.35;
+  }
+
+  .chat-markdown h1 {
+    font-size: 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.25rem;
+    color: #38bdf8;
+  }
+
+  .chat-markdown h2 {
+    font-size: 0.85rem;
+    color: #38bdf8;
+  }
+
+  .chat-markdown h3 {
+    font-size: 0.8rem;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .chat-markdown h3::before {
+    content: '◈';
+    color: #06b6d4;
+    font-size: 0.7rem;
+  }
+
+  .chat-markdown h4 {
+    font-size: 0.75rem;
+    color: #fb7185;
+  }
+
+  .chat-markdown p {
+    margin-top: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .chat-markdown strong {
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .chat-markdown em {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  .chat-markdown ul,
+  .chat-markdown ol {
+    padding-left: 1.15rem;
+    margin-top: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .chat-markdown ul {
+    list-style-type: disc;
+  }
+
+  .chat-markdown ul li::marker {
+    color: #06b6d4;
+  }
+
+  .chat-markdown ol {
+    list-style-type: decimal;
+  }
+
+  .chat-markdown ol li::marker {
+    color: #f43f5e;
+  }
+
+  .chat-markdown li {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .chat-markdown li > ul,
+  .chat-markdown li > ol {
+    margin-top: 0.15rem;
+    margin-bottom: 0.15rem;
+    padding-left: 1rem;
+  }
+
+  .chat-markdown code:not(pre code) {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    background-color: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+    color: #38bdf8;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+  }
+
+  .chat-markdown blockquote {
+    border-left: 2px solid #06b6d4;
+    padding-left: 0.65rem;
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
+    color: #94a3b8;
+    font-style: italic;
+    background-color: rgba(6, 182, 212, 0.05);
+    border-radius: 0 0.25rem 0.25rem 0;
+  }
+
+  .chat-markdown a {
+    color: #38bdf8;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.15s;
+  }
+
+  .chat-markdown a:hover {
+    color: #7dd3fc;
+  }
+
+  .chat-markdown table {
+    width: 100%;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+  }
+
+  .chat-markdown th,
+  .chat-markdown td {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+  }
+
+  .chat-markdown th {
+    background-color: #0c1428;
+    color: #f1f5f9;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+  }
+
+  .chat-markdown hr {
+    border-color: rgba(255, 255, 255, 0.08);
+    margin: 0.75rem 0;
+  }
+}
