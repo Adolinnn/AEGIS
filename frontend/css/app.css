@@ -51,20 +51,17 @@
     pointer-events: none;
     z-index: 0;
     overflow: hidden;
-    background: radial-gradient(circle at 50% 15%, #050a16 0%, #020409 65%, #010205 100%);
+    background: radial-gradient(circle at 50% 0%, #181926 0%, #0f111a 65%, #0a0b10 100%);
   }
 
   /* Precision Dot Matrix & Wireframe Grid Overlay */
   .cyber-bg-grid {
     position: absolute;
     inset: 0;
-    background-image: 
-      radial-gradient(rgba(6, 182, 212, 0.11) 1px, transparent 1px),
-      linear-gradient(to right, rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
-    background-size: 32px 32px, 32px 32px, 32px 32px;
-    mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.25) 80%, transparent 100%);
-    -webkit-mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.25) 80%, transparent 100%);
+    background-image: radial-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.15) 80%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.15) 80%, transparent 100%);
   }
 
   /* Background Ambient Radar Sweep Effect */
@@ -77,8 +74,8 @@
     background: conic-gradient(
       from 0deg at 50% 50%,
       transparent 0deg,
-      rgba(6, 182, 212, 0.015) 60deg,
-      rgba(6, 182, 212, 0.045) 120deg,
+      rgba(99, 102, 241, 0.02) 60deg,
+      rgba(99, 102, 241, 0.06) 120deg,
       transparent 121deg,
       transparent 360deg
     );
@@ -103,19 +100,19 @@
     animation: laser-sweep 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
 
-  /* Prominent Interactive Cyber Cards */
+  /* Prominent Interactive Cyber Cards - Updated for Executive Theme */
   .cyber-card-interactive {
     position: relative;
-    background: linear-gradient(135deg, rgba(10, 16, 32, 0.9) 0%, rgba(5, 8, 16, 0.97) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: #1e1e2e;
+    border: 1px solid #2e3048;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .cyber-card-interactive:hover {
-    transform: translateY(-4px) scale(1.015);
-    border-color: rgba(6, 182, 212, 0.6);
-    box-shadow: 0 12px 35px -5px rgba(6, 182, 212, 0.22), 0 0 20px -2px rgba(6, 182, 212, 0.18);
-    background: linear-gradient(135deg, rgba(14, 22, 42, 0.95) 0%, rgba(8, 12, 24, 0.98) 100%);
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 8px 24px -4px rgba(15, 17, 26, 0.8), 0 0 12px -2px rgba(99, 102, 241, 0.1);
+    background: #25263a;
   }
 
   /* Tactical Matte Cyber Button with Subtle Pulse */

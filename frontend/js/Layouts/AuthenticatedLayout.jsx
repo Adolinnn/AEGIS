@@ -4,7 +4,9 @@ import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { MagnifyingGlassIcon, BellIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 export default function AuthenticatedLayout({ header, children }) {
     const { auth } = usePage().props;
@@ -20,171 +22,179 @@ export default function AuthenticatedLayout({ header, children }) {
         setShowTrialBanner(false);
     };
 
-    return (
-        <div className="min-h-screen text-slate-100 font-sans selection:bg-red-500 selection:text-white relative bg-transparent overflow-x-hidden">
+    const [criticalAlert, setCriticalAlert] = useState(null);
+    const notifiedIds = useRef(new Set());
 
+    useEffect(() => {
+        const checkAlerts = async () => {
+            try {
+                const res = await axios.get(route('siem.alerts.critical-unread'));
+                if (res.data.alerts && res.data.alerts.length > 0) {
+                    const latest = res.data.alerts[0];
+                    if (!notifiedIds.current.has(latest.id)) {
+                        notifiedIds.current.add(latest.id);
+                        setCriticalAlert(latest);
+                        setTimeout(() => setCriticalAlert(null), 8000);
+                    }
+                }
+            } catch (e) {}
+        };
+        checkAlerts();
+        const interval = setInterval(checkAlerts, 10000);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="min-h-screen text-slate-100 font-sans selection:bg-exec-indigo/50 selection:text-white relative bg-transparent overflow-x-hidden">
+            {/* Global Critical Alert Toast */}
+            <div className={`fixed bottom-6 right-6 z-50 transition-all duration-500 transform ${criticalAlert ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-10 opacity-0 scale-95 pointer-events-none'}`}>
+                {criticalAlert && (
+                    <div className="bg-[#0a0f1a]/90 backdrop-blur-xl border border-exec-critical/50 p-4 rounded-2xl shadow-[0_10px_40px_rgba(244,63,94,0.3)] flex items-start gap-4 max-w-sm">
+                        <div className="bg-exec-critical/20 p-2 rounded-full border border-exec-critical/30 shrink-0">
+                            <BellIcon className="w-6 h-6 text-exec-critical animate-pulse" />
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-exec-critical font-bold text-sm mb-1 uppercase tracking-wider">{criticalAlert.severity} Alert</h4>
+                            <p className="text-white text-sm font-semibold mb-1 leading-tight">{criticalAlert.title}</p>
+                            <p className="text-slate-400 text-xs font-mono mb-2">Agent: {criticalAlert.agent_id} | {criticalAlert.src_ip || 'Internal'}</p>
+                            <Link href={route('siem.alerts.show', criticalAlert.id)} onClick={() => setCriticalAlert(null)} className="text-xs bg-white/[0.05] hover:bg-white/[0.1] px-3 py-1.5 rounded-lg border border-white/[0.1] text-white transition-colors inline-block font-medium">View Alert</Link>
+                        </div>
+                        <button onClick={() => setCriticalAlert(null)} className="text-slate-500 hover:text-white transition-colors mt-0.5"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                    </div>
+                )}
+            </div>
             {/* Unified App Shell that shifts smoothly in tandem with ChatSidebar */}
             <div className={`min-h-screen flex flex-col transition-[margin-right] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[margin-right] ${
                 chatOpen ? 'lg:mr-[430px]' : 'mr-0'
             }`}>
-
-                {trial_active && showTrialBanner && (
-                    <div className="bg-[#050a16] border-b border-[#1e293b] flex items-center justify-center relative z-50 py-1.5 px-4 shadow-[0_4px_15px_rgba(0,0,0,0.5)]">
-                        <div className="text-xs font-mono text-slate-300 tracking-wide text-center">
-                            <span className="text-amber-500 font-semibold mr-1.5">◆</span>
-                            You have <span className="text-white font-bold">{trial_days_remaining} {trial_days_remaining === 1 ? 'day' : 'days'}</span> left in your trial. 
-                            <Link href={route('billing.index')} className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 ml-2 transition-colors">
-                                View Billing & Plans →
-                            </Link>
-                        </div>
-                        <button onClick={dismissTrialBanner} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white transition-colors" title="Dismiss">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                )}
-
-                {/* Navigation Bar with Telemetry Line */}
-                <nav className="sticky top-0 z-40 border-b border-white/[0.08] bg-[#070b14]/90 backdrop-blur-xl shadow-[0_4px_25px_rgba(0,0,0,0.6)] navbar-telemetry-line w-full">
-                    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 w-full">
+                
+                {/* Navigation Bar - Extreme Glassmorphism */}
+                <nav className="sticky top-0 z-40 border-b border-white/[0.08] bg-white/[0.02] backdrop-blur-2xl shadow-[0_4px_30px_rgba(0,0,0,0.4)] w-full">
+                    {/* Inner highlight line */}
+                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.12] to-transparent"></div>
+                    
+                    <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 w-full">
                         <div className="flex h-16 justify-between items-center gap-4">
-                            <div className="flex items-center gap-4 lg:gap-6 min-w-0 shrink">
-                                {/* Brand / Logo */}
-                                <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-                                    <div className="p-1.5 rounded-lg bg-gradient-to-br from-red-600/20 to-transparent border border-red-500/30 group-hover:border-red-500/60 group-hover:scale-105 transition-all duration-300 shadow-[0_0_12px_rgba(244,63,94,0.2)]">
-                                        <ApplicationLogo className="block h-6 w-auto" />
+                            
+                            {/* Left: Brand & Nav */}
+                            <div className="flex items-center gap-6 xl:gap-8 min-w-0 shrink">
+                                {/* Brand */}
+                                <Link href="/" className="flex items-center gap-3 group shrink-0">
+                                    <div className="p-1.5 rounded-lg bg-exec-indigo/10 border border-exec-indigo/30 group-hover:bg-exec-indigo/20 group-hover:border-exec-indigo/50 transition-all duration-300 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                                        <ApplicationLogo className="block h-5 w-auto text-exec-indigo" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="font-mono text-base font-bold tracking-widest text-white uppercase group-hover:text-red-400 transition-colors">
-                                            Aegis
-                                        </span>
-                                        <span className="font-mono text-[9px] text-slate-500 uppercase tracking-widest -mt-1">
-                                            SecOps Core
+                                        <span className="font-sans text-[13px] font-bold tracking-widest text-white uppercase group-hover:text-exec-indigo transition-colors">
+                                            Aegis // Executive SOC
                                         </span>
                                     </div>
                                 </Link>
 
-                                {/* System Status Beacon */}
-                                <div className={`hidden ${chatOpen ? '2xl:flex' : 'xl:flex'} items-center gap-2 px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-[10px] font-mono text-slate-400 transition-all duration-300 hover:border-emerald-500/40 shrink-0`}>
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                    </span>
-                                    <span className="text-emerald-400 font-semibold tracking-wider">ONLINE</span>
-                                </div>
-
                                 {/* Main Navigation Links */}
-                                <div className={`hidden sm:-my-px sm:flex ${chatOpen ? 'sm:space-x-0.5 lg:space-x-1' : 'sm:space-x-1 lg:space-x-2'} shrink-0 transition-all duration-300`}>
-                                    <NavLink
-                                        href={route('dashboard')}
-                                        active={route().current('dashboard')}
-                                    >
-                                        Dashboard
-                                    </NavLink>
-                                    <NavLink
-                                        href={route('quick-scan.index')}
-                                        active={route().current('quick-scan.*')}
-                                    >
-                                        Quick Recon
-                                    </NavLink>
-                                    <NavLink
-                                        href={route('targets.index')}
-                                        active={route().current('targets.*')}
-                                    >
-                                        Targets
-                                    </NavLink>
-                                    <NavLink
-                                        href={route('scan-runs.index')}
-                                        active={route().current('scan-runs.*')}
-                                    >
-                                        Scan Runs
-                                    </NavLink>
-                                    <NavLink
-                                        href={route('vulnerabilities.index')}
-                                        active={route().current('vulnerabilities.*')}
-                                    >
-                                        Findings
-                                    </NavLink>
-                                    <NavLink
-                                        href={route('billing.index')}
-                                        active={route().current('billing.*')}
-                                    >
-                                        Billing
-                                    </NavLink>
+                                <div className={`hidden md:-my-px md:flex ${chatOpen ? 'md:space-x-1 lg:space-x-2' : 'md:space-x-2 lg:space-x-4'} shrink-0 transition-all duration-300`}>
+                                    <NavLink href={route('dashboard')} active={route().current('dashboard')}>Dashboard</NavLink>
+                                    <NavLink href={route('quick-scan.index')} active={route().current('quick-scan.*')}>Probes</NavLink>
+                                    <NavLink href={route('targets.index')} active={route().current('targets.*')}>Assets</NavLink>
+                                    <NavLink href={route('vulnerabilities.index')} active={route().current('vulnerabilities.*')}>Threats</NavLink>
+                                    
+                                    {/* SIEM Dropdown */}
+                                    <div className="relative flex items-center h-full">
+                                        <Dropdown>
+                                            <Dropdown.Trigger>
+                                                <button className={`relative inline-flex items-center px-3.5 py-2 text-[10px] font-sans font-bold uppercase tracking-widest transition-all duration-300 focus:outline-none group ${
+                                                    route().current('siem.*') 
+                                                        ? 'text-white font-semibold' 
+                                                        : 'text-slate-400 hover:text-white'
+                                                }`}>
+                                                    {route().current('siem.*') && (
+                                                        <span className="relative flex h-1.5 w-1.5 mr-2">
+                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-exec-indigo opacity-75"></span>
+                                                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-exec-indigo shadow-[0_0_8px_#6366f1]"></span>
+                                                        </span>
+                                                    )}
+                                                    <span>SIEM</span>
+                                                    <svg className="ml-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                    </svg>
+                                                    {route().current('siem.*') ? (
+                                                        <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-exec-indigo via-[#8b5cf6] to-exec-indigo shadow-[0_0_10px_#6366f1] animate-pulse"></span>
+                                                    ) : (
+                                                        <span className="absolute bottom-0 left-1/2 right-1/2 h-[1.5px] bg-white/0 group-hover:left-2 group-hover:right-2 group-hover:bg-white/30 transition-all duration-300 shadow-sm"></span>
+                                                    )}
+                                                </button>
+                                            </Dropdown.Trigger>
+                                            <Dropdown.Content align="left" width="48">
+                                                <Dropdown.Link href={route('siem.overview')}>Overview</Dropdown.Link>
+                                                <Dropdown.Link href={route('siem.alerts.index')}>Alerts</Dropdown.Link>
+                                                <Dropdown.Link href={route('siem.events.index')}>Events</Dropdown.Link>
+                                                <Dropdown.Link href={route('siem.rules.index')}>Rules</Dropdown.Link>
+                                                <Dropdown.Link href={route('siem.agents.index')}>Agents</Dropdown.Link>
+                                            </Dropdown.Content>
+                                        </Dropdown>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Right: User Menu */}
-                            <div className="hidden sm:flex sm:items-center sm:gap-3 shrink-0">
-                                {user.is_admin && (
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-purple-950/80 text-purple-300 border border-purple-800/80 shadow-[0_0_8px_rgba(168,85,247,0.3)]">
-                                        Admin
+                            {/* Right: User Menu & Telemetry */}
+                            <div className="hidden md:flex md:items-center md:gap-4 shrink-0">
+                                
+                                {/* Telemetry Ping */}
+                                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.03] border border-white/[0.08] backdrop-blur-md">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                                     </span>
-                                )}
+                                    <span className="text-xs font-mono text-slate-300">Streaming • 24ms</span>
+                                </div>
 
-                                <div className="relative">
+                                {/* Notification Bell */}
+                                <button className="relative p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/[0.05] transition-colors">
+                                    <BellIcon className="h-5 w-5" />
+                                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-exec-critical border border-[#0f111a]"></span>
+                                </button>
+                                
+                                {/* Settings */}
+                                <button className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/[0.05] transition-colors">
+                                    <Cog6ToothIcon className="h-5 w-5" />
+                                </button>
+
+                                {/* Profile Dropdown */}
+                                <div className="relative ml-2">
                                     <Dropdown>
                                         <Dropdown.Trigger>
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/90 px-3 py-1.5 font-mono text-xs font-medium text-slate-300 transition duration-200 ease-in-out hover:border-cyan-500/60 hover:text-white hover:shadow-[0_0_10px_rgba(6,182,212,0.2)] focus:outline-none"
-                                            >
-                                                <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#06b6d4]"></span>
-                                                <span className={`font-sans font-semibold truncate ${chatOpen ? 'max-w-[85px] sm:max-w-[100px]' : 'max-w-[120px]'} transition-all`}>{user.name}</span>
-                                                <svg
-                                                    className="h-3.5 w-3.5 text-slate-400"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
+                                            <button className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] pl-2 pr-3 py-1 text-sm font-medium text-slate-300 hover:bg-white/[0.08] hover:border-exec-indigo/40 transition-all backdrop-blur-md">
+                                                <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-exec-indigo to-emerald-500 flex items-center justify-center text-[10px] text-white font-bold shadow-[0_0_10px_rgba(99,102,241,0.4)]">
+                                                    {user.name.charAt(0)}
+                                                </div>
+                                                <div className="flex flex-col items-start leading-none">
+                                                    <span className="font-sans text-xs font-semibold text-white truncate max-w-[80px]">{user.name}</span>
+                                                    <span className="font-mono text-[9px] text-slate-400">Clearance L5</span>
+                                                </div>
                                             </button>
                                         </Dropdown.Trigger>
-
-                                        <Dropdown.Content>
-                                            <div className="px-4 py-2 border-b border-slate-800 text-[11px] font-mono text-slate-400">
-                                                <div className="text-slate-200 font-semibold truncate">{user.name}</div>
-                                                <div className="text-slate-500 truncate text-[10px]">{user.email}</div>
-                                            </div>
-                                            <Dropdown.Link href={route('profile.edit')}>
-                                                ⚙️ Profile & Keys
-                                            </Dropdown.Link>
-                                            <Dropdown.Link
-                                                href={route('logout')}
-                                                method="post"
-                                                as="button"
-                                                className="text-rose-400 hover:text-rose-300"
-                                            >
-                                                ⏻ Log Out
-                                            </Dropdown.Link>
+                                        <Dropdown.Content align="right" width="48">
+                                            <Dropdown.Link href={route('profile.edit')}>Profile & Keys</Dropdown.Link>
+                                            <Dropdown.Link href={route('logout')} method="post" as="button">Log Out</Dropdown.Link>
                                         </Dropdown.Content>
                                     </Dropdown>
                                 </div>
                             </div>
-
+                            
                             {/* Mobile menu hamburger button */}
-                            <div className="-me-2 flex items-center sm:hidden">
+                            <div className="-me-2 flex items-center md:hidden">
                                 <button
                                     onClick={() => setShowingNavigationDropdown((prev) => !prev)}
-                                    className="inline-flex items-center justify-center rounded-md p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white focus:outline-none"
+                                    className="inline-flex items-center justify-center rounded-md p-2 text-slate-400 hover:bg-white/[0.05] hover:text-white focus:outline-none"
                                 >
                                     <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                         <path
                                             className={!showingNavigationDropdown ? 'inline-flex' : 'hidden'}
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2"
+                                            strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                                             d="M4 6h16M4 12h16M4 18h16"
                                         />
                                         <path
                                             className={showingNavigationDropdown ? 'inline-flex' : 'hidden'}
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2"
+                                            strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                                             d="M6 18L18 6M6 6l12 12"
                                         />
                                     </svg>
@@ -194,38 +204,31 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
 
                     {/* Responsive Navigation Menu (Mobile) */}
-                    <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden bg-[#0a1020] border-b border-slate-800'}>
+                    <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' md:hidden bg-exec-base/90 backdrop-blur-xl border-b border-white/[0.05]'}>
                         <div className="space-y-1 pb-3 pt-2">
-                            <ResponsiveNavLink href={route('dashboard')} active={route().current('dashboard')}>
-                                Dashboard
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink href={route('quick-scan.index')} active={route().current('quick-scan.*')}>
-                                Quick Recon
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink href={route('targets.index')} active={route().current('targets.*')}>
-                                Targets
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink href={route('scan-runs.index')} active={route().current('scan-runs.*')}>
-                                Scan Runs
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink href={route('vulnerabilities.index')} active={route().current('vulnerabilities.*')}>
-                                Findings
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink href={route('billing.index')} active={route().current('billing.*')}>
-                                Billing
-                            </ResponsiveNavLink>
+                            <ResponsiveNavLink href={route('dashboard')} active={route().current('dashboard')}>Dashboard</ResponsiveNavLink>
+                            <ResponsiveNavLink href={route('quick-scan.index')} active={route().current('quick-scan.*')}>Probes</ResponsiveNavLink>
+                            <ResponsiveNavLink href={route('targets.index')} active={route().current('targets.*')}>Assets</ResponsiveNavLink>
+                            <ResponsiveNavLink href={route('vulnerabilities.index')} active={route().current('vulnerabilities.*')}>Threats</ResponsiveNavLink>
                         </div>
 
-                        <div className="border-t border-slate-800 pb-3 pt-4 px-4">
+                        <div className="border-t border-white/[0.05] pb-3 pt-4">
+                            <div className="px-4 text-[10px] font-sans font-bold uppercase tracking-widest text-slate-500 mb-2">SIEM Operations</div>
+                            <div className="space-y-1">
+                                <ResponsiveNavLink href={route('siem.overview')} active={route().current('siem.overview')}>Overview</ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('siem.alerts.index')} active={route().current('siem.alerts.*')}>Alerts</ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('siem.events.index')} active={route().current('siem.events.*')}>Events</ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('siem.rules.index')} active={route().current('siem.rules.*')}>Rules</ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('siem.agents.index')} active={route().current('siem.agents.*')}>Agents</ResponsiveNavLink>
+                            </div>
+                        </div>
+
+                        <div className="border-t border-white/[0.05] pb-3 pt-4 px-4">
                             <div className="text-sm font-semibold text-slate-200">{user.name}</div>
                             <div className="text-xs font-mono text-slate-500">{user.email}</div>
                             <div className="mt-3 space-y-1">
-                                <ResponsiveNavLink href={route('profile.edit')}>
-                                    Profile & API Keys
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink method="post" href={route('logout')} as="button">
-                                    Log Out
-                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('profile.edit')}>Profile & API Keys</ResponsiveNavLink>
+                                <ResponsiveNavLink method="post" href={route('logout')} as="button">Log Out</ResponsiveNavLink>
                             </div>
                         </div>
                     </div>
@@ -233,14 +236,14 @@ export default function AuthenticatedLayout({ header, children }) {
 
                 {/* Page Header banner if present */}
                 {header && (
-                    <header className="border-b border-white/[0.06] bg-[#090e1b]/60 backdrop-blur-md relative z-10 hud-fade-in">
-                        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+                    <header className="border-b border-white/[0.05] bg-white/[0.01] backdrop-blur-xl relative z-10 hud-fade-in shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+                        <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 lg:px-8">
                             {header}
                         </div>
                     </header>
                 )}
 
-                {/* Main Application Area with HUD Entrance Animation */}
+                {/* Main Application Area */}
                 <main className="relative z-10 hud-fade-in flex-1">
                     {children}
                 </main>

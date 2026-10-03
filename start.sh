@@ -26,11 +26,12 @@ echo "▶ Installing PHP dependencies..."
 echo "▶ Installing JS dependencies..."
 [ -d node_modules ] || npm install --legacy-peer-deps
 
-# Monorepo glue: FIX SYMLINK PATHS (../frontend instead of ../../frontend)
+# Monorepo glue: FIX SYMLINK PATHS
 ln -sfn ../backend/node_modules "$REPO_ROOT/frontend/node_modules"
 mkdir -p resources
-ln -sfn ../frontend/js resources/js
-ln -sfn ../frontend/css resources/css
+rm -rf resources/js resources/css
+ln -sfn ../../frontend/js resources/js
+ln -sfn ../../frontend/css resources/css
 
 [ -f .env ] || cp .env.example .env
 
@@ -104,8 +105,8 @@ fi
 $CONCURRENTLY_BIN -k \
     -n server,vite,queue,schedule,reverb \
     -c "#93c5fd,#fdba74,#fb7185,#c4b5fd,#6ee7b7" \
-    "php artisan serve --host=127.0.0.1 --port=$PORT" \
-    "npm run dev" \
+    "php artisan serve --host=0.0.0.0 --port=$PORT" \
+    "npm run dev -- --host" \
     "php artisan queue:listen --tries=1 --timeout=0" \
     "php artisan schedule:work" \
     "php artisan reverb:start"

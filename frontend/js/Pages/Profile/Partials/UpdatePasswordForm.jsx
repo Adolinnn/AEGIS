@@ -1,10 +1,10 @@
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import { Transition } from '@headlessui/react';
 import { useForm } from '@inertiajs/react';
 import { useRef } from 'react';
+import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function UpdatePasswordForm({ className = '' }) {
     const passwordInput = useRef();
@@ -46,22 +46,18 @@ export default function UpdatePasswordForm({ className = '' }) {
 
     return (
         <section className={className}>
-            <header>
-                <h2 className="text-lg font-medium text-gray-100">
-                    Update Password
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-400">
-                    Ensure your account is using a long, random password to stay
-                    secure.
+            <header className="mb-8">
+                <p className="mt-1 text-sm font-sans font-medium text-slate-400">
+                    Ensure your account is using a long, random password to stay secure.
                 </p>
             </header>
 
-            <form onSubmit={updatePassword} className="mt-6 space-y-6">
+            <form onSubmit={updatePassword} className="space-y-6">
                 <div>
                     <InputLabel
                         htmlFor="current_password"
                         value="Current Password"
+                        className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-400 mb-2"
                     />
 
                     <TextInput
@@ -72,18 +68,19 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('current_password', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className="mt-1 block w-full bg-black/30 border-white/[0.1] text-white focus:border-exec-high focus:ring-exec-high rounded-xl h-11 px-4 transition-colors placeholder:text-slate-600"
                         autoComplete="current-password"
+                        placeholder="••••••••••••"
                     />
 
                     <InputError
                         message={errors.current_password}
-                        className="mt-2"
+                        className="mt-2 text-exec-critical"
                     />
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="password" value="New Password" />
+                    <InputLabel htmlFor="password" value="New Password" className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-400 mb-2" />
 
                     <TextInput
                         id="password"
@@ -91,17 +88,19 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.password}
                         onChange={(e) => setData('password', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full"
+                        className="mt-1 block w-full bg-black/30 border-white/[0.1] text-white focus:border-exec-high focus:ring-exec-high rounded-xl h-11 px-4 transition-colors placeholder:text-slate-600"
                         autoComplete="new-password"
+                        placeholder="••••••••••••"
                     />
 
-                    <InputError message={errors.password} className="mt-2" />
+                    <InputError message={errors.password} className="mt-2 text-exec-critical" />
                 </div>
 
                 <div>
                     <InputLabel
                         htmlFor="password_confirmation"
                         value="Confirm Password"
+                        className="text-[10px] font-sans font-bold uppercase tracking-widest text-slate-400 mb-2"
                     />
 
                     <TextInput
@@ -111,27 +110,36 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('password_confirmation', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className="mt-1 block w-full bg-black/30 border-white/[0.1] text-white focus:border-exec-high focus:ring-exec-high rounded-xl h-11 px-4 transition-colors placeholder:text-slate-600"
                         autoComplete="new-password"
+                        placeholder="••••••••••••"
                     />
 
                     <InputError
                         message={errors.password_confirmation}
-                        className="mt-2"
+                        className="mt-2 text-exec-critical"
                     />
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                <div className="flex items-center gap-4 pt-4">
+                    <button 
+                        disabled={processing}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-exec-high/30 bg-exec-high/10 text-exec-high font-sans text-sm font-bold hover:bg-exec-high/20 transition-all hover:shadow-[0_0_15px_rgba(245,158,11,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Save Password
+                    </button>
 
                     <Transition
                         show={recentlySuccessful}
-                        enter="transition ease-in-out"
-                        enterFrom="opacity-0"
-                        leave="transition ease-in-out"
+                        enter="transition ease-in-out duration-300"
+                        enterFrom="opacity-0 translate-y-1"
+                        enterTo="opacity-100 translate-y-0"
+                        leave="transition ease-in-out duration-300"
+                        leaveFrom="opacity-100"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm font-sans font-bold text-exec-info flex items-center gap-1.5">
+                            <CheckCircleIcon className="w-4 h-4" />
                             Saved.
                         </p>
                     </Transition>
