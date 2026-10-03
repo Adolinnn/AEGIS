@@ -1,0 +1,22 @@
+{
+  "skills": [
+    {
+      "source": "cursor/plugins",
+      "skills": [
+        "thermo-nuclear-code-quality-review"
+      ]
+    },
+    {
+      "source": "mattpocock/skills",
+      "skills": [
+        "improve-codebase-architecture"
+      ]
+    },
+    {
+      "source": "vercel-labs/skills",
+      "skills": [
+        "find-skills"
+      ]
+    }
+  ]
+}
