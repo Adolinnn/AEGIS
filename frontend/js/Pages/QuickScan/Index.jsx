@@ -5,10 +5,8 @@ import TelemetryTerminal from '@/Components/TelemetryTerminal';
 import { useState } from 'react';
 import { 
     MagnifyingGlassIcon, 
-    CheckCircleIcon, 
-    XCircleIcon, 
     ClockIcon,
-    CommandLineIcon
+    GlobeAltIcon
 } from '@heroicons/react/24/outline';
 
 export default function QuickScanIndex() {
@@ -44,15 +42,17 @@ export default function QuickScanIndex() {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/60 font-semibold">
-                                LIVE RECON
+                        <div className="flex items-center gap-3">
+                            <span className="font-sans text-[10px] px-2.5 py-1 rounded-full bg-exec-indigo/10 text-exec-indigo border border-exec-indigo/30 font-bold uppercase tracking-wider flex items-center gap-2 shadow-[0_0_10px_rgba(99,102,241,0.2)]">
+                                <GlobeAltIcon className="h-3 w-3" />
+                                Live Recon
                             </span>
-                            <span className="font-mono text-xs text-slate-500">Synchronous HTTP/DNS Telemetry</span>
+                            <span className="text-slate-500 text-sm font-sans">/</span>
+                            <span className="font-sans text-xs text-slate-400 font-medium">Synchronous HTTP/DNS Telemetry</span>
                         </div>
-                        <h1 className="text-2xl font-mono font-bold text-white tracking-tight mt-1">
+                        <h1 className="text-3xl font-sans font-bold text-white tracking-tight mt-3 drop-shadow-md">
                             Quick Reconnaissance Terminal
                         </h1>
                     </div>
@@ -61,40 +61,46 @@ export default function QuickScanIndex() {
         >
             <Head title="Quick Recon" />
 
-            <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+            <div className="mx-auto max-w-[1400px] px-4 py-10 sm:px-6 lg:px-8 space-y-8">
                 
-                {/* Input Card with Laser Beam Header */}
-                <div className="laser-beam-header rounded-xl border border-white/[0.08] bg-[#0c1428]/90 p-6 backdrop-blur-md shadow-xl hud-fade-in">
-                    <p className="mb-4 font-mono text-xs text-slate-400">
-                        Dispatch instantaneous read-only reconnaissance (<span className="text-cyan-400">whois</span>, <span className="text-cyan-400">dig</span>, <span className="text-cyan-400">sslscan</span>, <span className="text-cyan-400">whatweb</span>) against any target host or URL.
+                {/* Input Card */}
+                <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-2xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.2)] relative overflow-hidden hud-fade-in">
+                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.12] to-transparent"></div>
+                    <p className="mb-6 font-sans text-sm text-slate-400 font-medium max-w-3xl leading-relaxed">
+                        Dispatch instantaneous read-only reconnaissance (<span className="text-exec-indigo font-mono text-xs px-1.5 py-0.5 rounded bg-exec-indigo/10 border border-exec-indigo/30">whois</span>, <span className="text-exec-indigo font-mono text-xs px-1.5 py-0.5 rounded bg-exec-indigo/10 border border-exec-indigo/30">dig</span>, <span className="text-exec-indigo font-mono text-xs px-1.5 py-0.5 rounded bg-exec-indigo/10 border border-exec-indigo/30">sslscan</span>, <span className="text-exec-indigo font-mono text-xs px-1.5 py-0.5 rounded bg-exec-indigo/10 border border-exec-indigo/30">whatweb</span>) against any target host or URL.
                     </p>
 
-                    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+                    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
-                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none font-mono text-xs text-slate-500">
-                                <span>target:</span>
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none font-mono text-xs text-slate-500 font-bold">
+                                <span>TARGET:</span>
                             </div>
                             <input
                                 type="text"
                                 value={target}
                                 onChange={(e) => setTarget(e.target.value)}
                                 placeholder="example.com or https://api.production.app"
-                                className="w-full rounded-lg border border-slate-700/80 bg-[#070b14] pl-20 pr-4 py-2.5 font-mono text-sm text-slate-100 placeholder-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 shadow-inner"
+                                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-20 pr-4 py-3.5 font-mono text-sm text-slate-100 placeholder-slate-500 focus:border-exec-indigo/50 focus:outline-none focus:ring-1 focus:ring-exec-indigo/50 transition-all shadow-inner backdrop-blur-md"
                             />
                         </div>
-                        <PrimaryButton disabled={loading || !target.trim()} className="shrink-0 h-[42px]">
-                            <MagnifyingGlassIcon className="mr-2 h-4 w-4" />
+                        <button 
+                            type="submit"
+                            disabled={loading || !target.trim()} 
+                            className="shrink-0 inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-exec-indigo to-[#8b5cf6] text-white font-sans text-sm font-bold hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] active:scale-[0.98] transition-all relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <div className="absolute inset-0 bg-white/20 hover:opacity-0 transition-opacity rounded-xl pointer-events-none"></div>
+                            <MagnifyingGlassIcon className="h-5 w-5" />
                             {loading ? 'Probing Target…' : 'Execute Recon'}
-                        </PrimaryButton>
+                        </button>
                     </form>
 
                     {/* Example targets */}
-                    <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-slate-500">
+                    <div className="mt-5 flex items-center gap-3 font-sans text-xs text-slate-500 font-medium">
                         <span>Quick try:</span>
                         <button 
                             type="button" 
                             onClick={() => setTarget('scanme.nmap.org')} 
-                            className="text-cyan-400/80 hover:text-cyan-300 underline transition-colors"
+                            className="text-exec-indigo hover:text-white underline underline-offset-4 transition-colors"
                         >
                             scanme.nmap.org
                         </button>
@@ -102,7 +108,7 @@ export default function QuickScanIndex() {
                         <button 
                             type="button" 
                             onClick={() => setTarget('https://laravel.com')} 
-                            className="text-cyan-400/80 hover:text-cyan-300 underline transition-colors"
+                            className="text-exec-indigo hover:text-white underline underline-offset-4 transition-colors"
                         >
                             https://laravel.com
                         </button>
@@ -111,21 +117,23 @@ export default function QuickScanIndex() {
 
                 {/* Error Banner */}
                 {error && (
-                    <div className="rounded-xl border border-rose-500/30 bg-rose-950/40 p-4 font-mono text-xs text-rose-300 shadow-lg hud-fade-in">
-                        <span className="font-bold text-rose-400">[RECON_ERROR]</span> {error}
+                    <div className="rounded-2xl border border-exec-critical/30 bg-exec-critical/10 p-5 font-sans text-sm text-exec-critical shadow-[0_4px_20px_rgba(244,63,94,0.15)] hud-fade-in backdrop-blur-md flex items-center gap-3">
+                        <span className="font-mono text-xs font-bold uppercase tracking-widest text-white px-2 py-1 bg-exec-critical rounded">Error</span>
+                        <span>{error}</span>
                     </div>
                 )}
 
                 {/* Loading State */}
                 {loading && (
-                    <div className="laser-beam-header rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-8 text-center backdrop-blur-md shadow-lg space-y-3 hud-fade-in">
+                    <div className="rounded-3xl border border-exec-indigo/30 bg-exec-indigo/10 p-12 text-center backdrop-blur-2xl shadow-[0_8px_32px_rgba(99,102,241,0.15)] space-y-4 hud-fade-in relative overflow-hidden">
+                        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-exec-indigo/50 to-transparent"></div>
                         <div className="flex justify-center">
-                            <ClockIcon className="h-8 w-8 text-cyan-400 animate-spin" />
+                            <ClockIcon className="h-10 w-10 text-exec-indigo animate-spin" />
                         </div>
-                        <div className="font-mono text-sm text-cyan-300 font-semibold">
+                        <div className="font-sans text-lg text-white font-bold">
                             Dispatching Concurrent Reconnaissance Commands…
                         </div>
-                        <div className="font-mono text-xs text-slate-400">
+                        <div className="font-sans text-sm text-slate-400 font-medium">
                             Invoking whois, dig DNS lookup, sslscan ciphers, and whatweb fingerprinting.
                         </div>
                     </div>
@@ -133,23 +141,23 @@ export default function QuickScanIndex() {
 
                 {/* Results Tabs & Telemetry Terminal */}
                 {results && (
-                    <div className="space-y-2 hud-fade-in">
+                    <div className="space-y-4 hud-fade-in">
                         {/* Tab Switcher */}
-                        <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.08] pb-1">
+                        <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.08] pb-2">
                             {results.map((r, i) => (
                                 <button
                                     key={r.tool}
                                     onClick={() => setActiveTab(i)}
-                                    className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wider rounded-t-lg transition ${
+                                    className={`flex items-center gap-2 px-5 py-2.5 font-sans text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${
                                         activeTab === i
-                                            ? 'bg-[#070c18] text-cyan-300 border-t-2 border-x border-cyan-500/50 border-b-transparent shadow-lg'
-                                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+                                            ? 'bg-white/[0.05] text-white border border-white/[0.1] shadow-[0_0_15px_rgba(255,255,255,0.05)]'
+                                            : 'text-slate-400 hover:text-white hover:bg-white/[0.03] border border-transparent'
                                     }`}
                                 >
                                     {r.installed && !r.timed_out ? (
-                                        <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
+                                        <span className="w-2 h-2 rounded-full bg-exec-info shadow-[0_0_8px_#10b981]"></span>
                                     ) : (
-                                        <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_6px_#f43f5e]"></span>
+                                        <span className="w-2 h-2 rounded-full bg-exec-critical shadow-[0_0_8px_#f43f5e]"></span>
                                     )}
                                     {r.label}
                                 </button>
@@ -158,14 +166,16 @@ export default function QuickScanIndex() {
 
                         {/* Telemetry Terminal */}
                         {activeResult && (
-                            <TelemetryTerminal
-                                title={`aegis-recon://${activeResult.tool}-telemetry`}
-                                command={`aegis-recon --tool ${activeResult.tool} --target ${target}`}
-                                output={activeResult.output || ''}
-                                isRunning={false}
-                                status={activeResult.installed ? (activeResult.timed_out ? 'timed_out' : 'completed') : 'not_installed'}
-                                exitCode={activeResult.exit_code}
-                            />
+                            <div className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+                                <TelemetryTerminal
+                                    title={`aegis-recon://${activeResult.tool}-telemetry`}
+                                    command={`aegis-recon --tool ${activeResult.tool} --target ${target}`}
+                                    output={activeResult.output || ''}
+                                    isRunning={false}
+                                    status={activeResult.installed ? (activeResult.timed_out ? 'timed_out' : 'completed') : 'not_installed'}
+                                    exitCode={activeResult.exit_code}
+                                />
+                            </div>
                         )}
                     </div>
                 )}
