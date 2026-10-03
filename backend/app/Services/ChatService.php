@@ -93,6 +93,16 @@ class ChatService
             ? '(none yet)'
             : $targets->map(fn ($t) => "#{$t->id} {$t->domain_url}" . ($t->is_authorized ? '' : ' [NOT AUTHORIZED]'))->implode(', ');
 
+        $siemAlerts = \App\Models\SiemAlert::where('user_id', $user->id)
+            ->where('status', 'open')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get(['id', 'title', 'severity', 'src_ip']);
+            
+        $siemList = $siemAlerts->isEmpty()
+            ? '(none)'
+            : $siemAlerts->map(fn ($a) => "#{$a->id} [{$a->severity->value}] {$a->title} (IP: {$a->src_ip})")->implode("\n");
+
         $context = '';
         if (! empty($pageContext['target_id'])) {
             $context .= "\nThe user is currently viewing target #{$pageContext['target_id']}.";
@@ -102,17 +112,19 @@ class ChatService
         }
 
         return <<<PROMPT
-You are the AI assistant embedded in Aegis, a security scanning platform. You help {$user->name} understand
-vulnerabilities found by scans, and can act on their behalf using the tools provided.
+You are the AI assistant embedded in Aegis, a security scanning and SIEM platform. You help {$user->name} understand
+vulnerabilities found by scans and analyze SIEM telemetry alerts.
 
-Their targets (id + domain): {$targetList}
+Their scan targets: {$targetList}
+Active SIEM Alerts (Open):
+{$siemList}
 {$context}
 
 Rules:
-- Use the get_scan_results / get_target tools to look up real data before answering questions about specific findings, risk, or scan status — never invent findings.
-- Use add_target when the user asks you to add/create a new target. Always create it with authorization=false (the user must explicitly authorize it themselves in the UI afterward) unless they clearly state in their message that they own/are authorized to test that domain, in which case pass their stated authorization through — never assume authorization silently.
-- Keep answers concise and technical. When discussing a vulnerability, explain impact and a concrete remediation step.
-- If asked something outside security/this app's data, answer briefly and steer back.
+- Use the get_scan_results / get_target tools to look up real data before answering questions about specific findings, risk, or scan status.
+- Use add_target when the user asks you to add/create a new target. Always create it with authorization=false unless they explicitly state they own/are authorized to test that domain.
+- If asked about SIEM logs, analyze the provided log carefully based on typical security attack vectors.
+- Keep answers concise and technical. When discussing a vulnerability or alert, explain impact and a concrete remediation step.
 PROMPT;
     }
 

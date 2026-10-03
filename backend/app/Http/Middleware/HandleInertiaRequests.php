@@ -37,6 +37,12 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
                 'trial_active' => $user ? $user->hasActiveTrial() : false,
                 'trial_days_remaining' => $user ? $user->trialDaysRemaining() : 0,
+                'siem_badge_count' => $user ? \App\Models\SiemAlert::where('user_id', $user->id)->where('status', 'open')->whereIn('severity', ['high', 'critical'])->count() : 0,
+            ],
+            'flash' => [
+                'new_agent' => $request->session()->get('new_agent'),
+                'install_token' => $request->session()->get('install_token'),
+                'rotated_agent' => $request->session()->get('rotated_agent'),
             ],
         ];
     }
