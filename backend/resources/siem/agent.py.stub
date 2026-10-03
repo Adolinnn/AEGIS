@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+import os
+import sys
+import time
+import json
+import uuid
+import socket
+import urllib.request
+import urllib.error
+import ssl
+import platform
+import subprocess
+import argparse
+import fcntl
+from pathlib import Path
+
+# --- CONFIG (Injected by Server) ---
+SERVER_URL = "{{SERVER_URL}}"
+AGENT_UUID = "{{AGENT_UUID}}"
+AGENT_SECRET = "{{AGENT_SECRET}}"
+SOURCES = [] # {{INJECT_SOURCES}}
+BATCH_SIZE = 200
+FLUSH_INTERVAL = 5
+HEARTBEAT_INTERVAL = 30
+SPOOL_CAP_MB = 50
+VERIFY_TLS = True # {{INJECT_VERIFY_TLS}}
+AGENT_VERSION = "{{AGENT_VERSION}}"
+# -----------------------------------
+
+STATE_FILE = "/var/lib/aegis-agent/state.json"
+SPOOL_DIR = "/var/lib/aegis-agent/spool"
+LOG_DIR = "/var/log/aegis-agent"
+
+class Agent:
+    def __init__(self):
+        self.procs = {}
+        import shutil
+        has_journalctl = shutil.which('journalctl') is not None
+        
+        # Prioritize journalctl if available to capture all relevant system logs
+        for src in SOURCES:
+            if has_journalctl:
+                if src['source'] == 'auth':
+                    src['type'] = 'command'
+                    src['command'] = 'journalctl -u ssh -u sshd -u sudo -f -n 0'
+                elif src['source'] == 'syslog':
+                    src['type'] = 'command'
+                    src['command'] = 'journalctl -f -n 0'
+                    
+        self.state = self.load_state()
+        self.ssl_context = ssl.create_default_context() if VERIFY_TLS else ssl._create_unverified_context()
+        self.files = {}
+        self.spool = []
+        os.makedirs(SPOOL_DIR, exist_ok=True)
+        os.makedirs(LOG_DIR, exist_ok=True)
+        
+        # Auto-configure FIM path from UI settings into aegis.conf
+        conf_dir = os.path.expanduser("~/.aegis")
+        conf_path = os.path.join(conf_dir, "aegis.conf")
+        os.makedirs(conf_dir, exist_ok=True)
+        
+        if not os.path.exists(conf_path):
+            for src in SOURCES:
+                if src.get('source') == 'fim':
+                    with open(conf_path, 'w') as f:
+                        f.write(f"FIM_PATH={src.get('path', '/tmp/fim_test')}\n")
+                    break
+    
+    def load_state(self):
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def save_state(self):
+        # Atomic write
+        tmp = STATE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(self.state, f)
+        os.replace(tmp, STATE_FILE)
+
+    def log(self, msg):
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+
+    def http_post(self, path, payload):
+        url = f"{SERVER_URL.rstrip('/')}{path}"
+        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('X-Agent-Id', AGENT_UUID)
+        req.add_header('Authorization', f'Bearer {AGENT_SECRET}')
+        try:
+            with urllib.request.urlopen(req, context=self.ssl_context, timeout=10) as response:
+                return response.status, json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode('utf-8')
+        except urllib.error.URLError as e:
+            return 0, str(e.reason)
+
+    def heartbeat(self):
+        stats = {}
+        try:
+            uptime = float(open('/proc/uptime').read().split()[0])
+            stats['uptime'] = uptime
+        except Exception:
+            pass
+        
+        payload = {
+            'hostname': socket.gethostname(),
+            'os_info': platform.platform(),
+            'agent_version': AGENT_VERSION,
+            'tz_offset_minutes': -time.altzone // 60 if time.daylight else -time.timezone // 60,
+            'local_ips': [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]],
+            'host_stats': stats,
+            'source_errors': {},
+            'spool_depth': len(os.listdir(SPOOL_DIR))
+        }
+        status, _ = self.http_post('/api/siem/heartbeat', payload)
+        if status == 401:
+            self.log("ERROR: Agent revoked or secret rotated. Exiting.")
+            sys.exit(1)
+        return status == 200
+
+    def ingest_batch(self, batch):
+        payload = {
+            'batch_id': str(uuid.uuid4()),
+            'agent_version': AGENT_VERSION,
+            'events': batch
+        }
+        status, resp = self.http_post('/api/siem/ingest', payload)
+        if status == 401:
+            self.log("ERROR: Agent revoked or secret rotated. Exiting.")
+            sys.exit(1)
+        if status in (200, 202):
+            return True
+        elif status == 413:
+            self.log("ERROR: Batch too large.")
+            return False # Will be spooled, maybe we should split it? We keep it simple.
+        elif status == 429:
+            time.sleep(5) # Honor rudimentary backoff
+            return False
+        return False
+
+    def tail_files(self, once=False):
+        # Open files and commands
+        for src in SOURCES:
+            if src.get('type') == 'command':
+                cmd = src['command']
+                self.procs[cmd] = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, preexec_fn=os.setsid)
+                fd = self.procs[cmd].stdout.fileno()
+                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            else:
+                path = src['path']
+                if path not in self.state:
+                    try:
+                        size = os.path.getsize(path)
+                        inode = os.stat(path).st_ino
+                        self.state[path] = {'inode': inode, 'offset': size}
+                    except FileNotFoundError:
+                        self.state[path] = {'inode': 0, 'offset': 0}
+
+        last_flush = time.time()
+        last_heartbeat = 0
+        last_fim = 0
+        batch = []
+
+        while True:
+            now = time.time()
+            if now - last_heartbeat > HEARTBEAT_INTERVAL:
+                self.heartbeat()
+                last_heartbeat = now
+                
+            if now - last_fim > 60:
+                for src in SOURCES:
+                    if src['source'] == 'fim':
+                        self.run_fim(src['path'], batch)
+                last_fim = now
+
+            for src in SOURCES:
+                if src.get('type') == 'command':
+                    cmd = src['command']
+                    proc = self.procs[cmd]
+                    if proc.poll() is not None:
+                        # Restart command
+                        self.procs[cmd] = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, preexec_fn=os.setsid)
+                        fd = self.procs[cmd].stdout.fileno()
+                        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+                        continue
+                    
+                    while True:
+                        try:
+                            line = proc.stdout.readline()
+                            if not line:
+                                break
+                            batch.append({
+                                'source': src['source'],
+                                'path': cmd,
+                                'line': line.strip()[:4000],
+                                'collected_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                            })
+                        except IOError:
+                            break
+                    continue
+
+                path = src['path']
+                state = self.state[path]
+                
+                try:
+                    stat = os.stat(path)
+                except FileNotFoundError:
+                    continue
+
+                # Handle rotation
+                if stat.st_ino != state['inode'] or stat.st_size < state['offset']:
+                    if state['inode'] != 0 and stat.st_size < state['offset'] and stat.st_ino == state['inode']:
+                        # Truncated without inode change
+                        batch.append({
+                            'source': 'agent',
+                            'path': path,
+                            'line': f'Log file {path} was truncated',
+                            'collected_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                        })
+                    state['inode'] = stat.st_ino
+                    state['offset'] = 0
+
+                if stat.st_size > state['offset']:
+                    with open(path, 'r', errors='replace') as f:
+                        f.seek(state['offset'])
+                        lines = f.readlines()
+                        state['offset'] = f.tell()
+                        
+                        for line in lines:
+                            if line.endswith('\n'):
+                                batch.append({
+                                    'source': src['source'],
+                                    'path': path,
+                                    'line': line.strip()[:4000],
+                                    'collected_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                                })
+
+            if len(batch) >= BATCH_SIZE or (now - last_flush > FLUSH_INTERVAL and batch):
+                if self.ingest_batch(batch):
+                    self.save_state()
+                else:
+                    self.spool_batch(batch)
+                batch = []
+                last_flush = now
+
+            if once:
+                break
+            
+            time.sleep(1)
+
+    def run_fim(self, base_path, batch):
+        import hashlib
+        if 'fim' not in self.state:
+            self.state['fim'] = {}
+            
+        fim_path = base_path
+        conf_path = os.path.expanduser("~/.aegis/aegis.conf")
+        if os.path.exists(conf_path):
+            try:
+                with open(conf_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("FIM_PATH="):
+                            fim_path = line.split("=", 1)[1].strip()
+            except Exception:
+                pass
+        
+        try:
+            for root, dirs, files in os.walk(fim_path):
+                for f in files:
+                    filepath = os.path.join(root, f)
+                    try:
+                        stat = os.stat(filepath)
+                        mtime = stat.st_mtime
+                        
+                        if filepath not in self.state['fim'] or self.state['fim'][filepath]['mtime'] != mtime:
+                            # file is new or modified
+                            with open(filepath, 'rb') as fp:
+                                md5 = hashlib.md5(fp.read()).hexdigest()
+                                
+                            action = 'created' if filepath not in self.state['fim'] else 'modified'
+                            self.state['fim'][filepath] = {'mtime': mtime, 'md5': md5}
+                            
+                            batch.append({
+                                'source': 'fim',
+                                'path': filepath,
+                                'line': f"FIM:{action}:{md5}",
+                                'collected_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                            })
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def spool_batch(self, batch):
+        # Spool logic: write to disk, keep size under cap
+        filename = os.path.join(SPOOL_DIR, f"{time.time()}_{uuid.uuid4().hex}.json")
+        with open(filename, 'w') as f:
+            json.dump(batch, f)
+        
+        # Cleanup spool
+        spools = sorted([os.path.join(SPOOL_DIR, f) for f in os.listdir(SPOOL_DIR)])
+        total_size = sum(os.path.getsize(s) for s in spools)
+        while total_size > SPOOL_CAP_MB * 1024 * 1024 and spools:
+            oldest = spools.pop(0)
+            total_size -= os.path.getsize(oldest)
+            os.remove(oldest)
+
+    def process_spool(self):
+        spools = sorted([os.path.join(SPOOL_DIR, f) for f in os.listdir(SPOOL_DIR)])
+        for spool in spools:
+            try:
+                with open(spool, 'r') as f:
+                    batch = json.load(f)
+                if self.ingest_batch(batch):
+                    os.remove(spool)
+                else:
+                    break
+            except Exception:
+                os.remove(spool)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--once', action='store_true')
+    parser.add_argument('--version', action='store_true')
+    args = parser.parse_args()
+
+    if args.version:
+        print(f"Aegis Agent v{AGENT_VERSION}")
+        sys.exit(0)
+
+    agent = Agent()
+    
+    if args.test:
+        print(f"Testing connection to {SERVER_URL} ...")
+        status, _ = agent.http_post('/api/siem/health', {})
+        if status == 200:
+            print("OK: Reached Aegis SIEM server.")
+        else:
+            print(f"FAIL: Could not reach server (Status {status}).")
+            sys.exit(1)
+            
+        print("Testing authentication ...")
+        if agent.heartbeat():
+            print("OK: Authentication successful.")
+            sys.exit(0)
+        else:
+            print("FAIL: Authentication failed (check if revoked or secret rotated).")
+            sys.exit(1)
+
+    agent.process_spool()
+    agent.tail_files(once=args.once)

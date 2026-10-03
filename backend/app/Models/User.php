@@ -42,6 +42,21 @@ class User extends Authenticatable
         return $this->hasMany(Target::class);
     }
 
+    public function siemAgents(): HasMany
+    {
+        return $this->hasMany(SiemAgent::class);
+    }
+
+    public function siemEvents(): HasMany
+    {
+        return $this->hasMany(SiemEvent::class);
+    }
+
+    public function siemAlerts(): HasMany
+    {
+        return $this->hasMany(SiemAlert::class);
+    }
+
     public function hasActiveTrial(): bool
     {
         return $this->trial_ends_at && $this->trial_ends_at->isFuture();
