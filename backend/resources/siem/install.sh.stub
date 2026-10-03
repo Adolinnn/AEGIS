@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Aegis SIEM Installer
+# Generated for agent: {{AGENT_UUID}}
+
+set -euo pipefail
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run as root (sudo bash)"
+    exit 1
+fi
+
+if ! command -v python3 &> /dev/null; then
+    echo "python3 is not installed. Please install it first."
+    exit 1
+fi
+
+if [ "${1:-}" = "--uninstall" ]; then
+    echo "Uninstalling Aegis Agent..."
+    systemctl stop aegis-agent || true
+    systemctl disable aegis-agent || true
+    rm -f /etc/systemd/system/aegis-agent.service
+    systemctl daemon-reload
+    rm -rf /opt/aegis-agent
+    rm -rf /var/lib/aegis-agent
+    echo "Uninstalled successfully."
+    exit 0
+fi
+
+echo "Installing Aegis Agent..."
+mkdir -p /opt/aegis-agent
+mkdir -p /var/lib/aegis-agent/spool
+
+# The python script will be injected here by Laravel
+cat << 'EOFAGENT' > /opt/aegis-agent/agent.py
+{{PYTHON_SCRIPT}}
+EOFAGENT
+
+chmod 600 /opt/aegis-agent/agent.py
+
+# Create systemd service
+cat << 'EOF' > /etc/systemd/system/aegis-agent.service
+[Unit]
+Description=Aegis SIEM Agent
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/aegis-agent/agent.py
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable aegis-agent
+systemctl restart aegis-agent
+
+echo "Running connection test..."
+/usr/bin/python3 /opt/aegis-agent/agent.py --test
+
+echo "Aegis Agent installed and running!"

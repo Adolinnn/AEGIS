@@ -27,3 +27,5 @@ Schedule::call(function () {
 })->everyMinute()->name('aegis:dispatch-due-uptime-checks')->withoutOverlapping();
 
 Schedule::command('aegis:trials')->daily();
+Schedule::command('siem:check-agents')->everyMinute()->withoutOverlapping();
+Schedule::command('siem:prune')->daily();
